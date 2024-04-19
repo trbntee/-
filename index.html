@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="https://kotonohaworks.com/free-icons/wp-content/uploads/kkrn_icon_ongaku_16.png">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -105,7 +106,6 @@
 
   </style>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="icon" href="https://kotonohaworks.com/free-icons/wp-content/uploads/kkrn_icon_ongaku_16.png">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&display=swap" rel="stylesheet">
   <title>反復練習くん</title>
@@ -140,11 +140,35 @@
       <button class="end-button">停止</button>
     </div>
   </div>
+
+  <audio id="downBeat" src="https://github.com/trbntee/practice/raw/main/%E3%83%A1%E3%83%88%E3%83%AD%E3%83%8E%E3%83%BC%E3%83%A0%E3%81%AE%E3%83%81%E3%83%BC%E3%83%B3.mp3" preload="auto"></audio>
+  <audio id="upBeat" src="https://github.com/trbntee/practice/raw/main/%E3%83%A1%E3%83%88%E3%83%AD%E3%83%8E%E3%83%BC%E3%83%A0%E3%81%AE%E3%82%AB%E3%83%81%E3%83%83.mp3" preload="auto"></audio>
+  <audio id="endSound" src="https://github.com/trbntee/practice/raw/main/%E3%82%B9%E3%83%A9%E3%82%A4%E3%83%88%E3%82%99%E3%83%9B%E3%82%A4%E3%83%83%E3%82%B9%E3%83%AB%E3%83%95%E3%82%A1%E3%83%B3%E3%83%95%E3%82%A1%E3%83%BC%E3%83%AC2.mp3" preload="auto"></audio>
+  
   <script>
     "use strict";
 
-    let metronomeTimeoutId = null;
-    let reserveTimeoutId = null;
+    let metronomeAnimationId = null;
+    let reserveAnimationId = null;
+
+    const downBeat = document.getElementById('downBeat');
+    const upBeat = document.getElementById('upBeat');
+    const endSound = document.getElementById('endSound');
+
+    const audio = {
+      upBeat: upBeat,
+      downBeat: downBeat,
+      endSound: endSound,
+    }
+
+    downBeat.addEventListener('error', handleAudioError);
+    upBeat.addEventListener('error', handleAudioError);
+    endSound.addEventListener('error', handleAudioError);
+
+    function handleAudioError(e) {
+      console.error('Audio error:', e);
+      // エラーハンドリングの処理を追加
+    }
 
     function playReserve(startBpm, callback) {
       let count = 5;
@@ -155,18 +179,27 @@
       defaultMessage.classList.remove('active');
       countDown.classList.add('active');
 
-      function playAudio() {
-        if (count > 0) {
-          countDownNumber.textContent = count;
-          audio["upBeat"].play();
-          count = count - 1;
-          reserveTimeoutId = setTimeout(playAudio, delayInMilliseconds);
-        } else {
-          callback();
+      let startTime;
+
+      function playAudio(timestamp) {
+        if (!startTime) startTime = timestamp;
+        const elapsedTime = timestamp - startTime;
+
+        if (elapsedTime >= (5 - count) * delayInMilliseconds) {
+          if (count > 0) {
+            countDownNumber.textContent = count;
+            audio["upBeat"].play();
+            count--;
+          } else {
+            callback();
+            return;
+          }
         }
+
+        reserveAnimationId = requestAnimationFrame(playAudio);
       }
 
-      playAudio();
+      reserveAnimationId = requestAnimationFrame(playAudio);
     }
 
     function startMetronome(audio, startBpm, endBpm, interval, repeatCount) {
@@ -208,23 +241,30 @@
     }
 
     function playMetronome(audio, repeatCount, delayInMilliseconds, callback) {
+      let startTime;
       let count = 0;
 
-      function playAudio() {
-        if (count < repeatCount) {
-          if (count === 0) {
+      function playAudio(timestamp) {
+        if (!startTime) startTime = timestamp;
+        const elapsedTime = timestamp - startTime;
+
+        if (elapsedTime >= count * delayInMilliseconds) {
+          if (count % repeatCount === 0) {
             audio["downBeat"].play();
           } else {
             audio["upBeat"].play();
           }
           count++;
-          metronomeTimeoutId = setTimeout(playAudio, delayInMilliseconds);
+        }
+
+        if (count <= repeatCount) {
+          metronomeAnimationId = requestAnimationFrame(playAudio);
         } else {
           callback();
         }
       }
 
-      playAudio();
+      metronomeAnimationId = requestAnimationFrame(playAudio);
     }
 
     function stopMetronome() {
@@ -234,34 +274,20 @@
       countDown.classList.remove('active');
       currentBpm.classList.remove('active');
       defaultMessage.classList.add('active');
-      if (metronomeTimeoutId) {
+
+      if (metronomeAnimationId) {
         const currentBpm = document.querySelector('.current-bpm');
         currentBpm.classList.remove('active');
-        clearTimeout(metronomeTimeoutId);
-        metronomeTimeoutId = null;
+        cancelAnimationFrame(metronomeAnimationId);
+        metronomeAnimationId = null;
       }
 
-      if (reserveTimeoutId) {
+      if (reserveAnimationId) {
         const countDown = document.querySelector('.count-down');
         countDown.classList.remove('active');
-        clearTimeout(reserveTimeoutId);
-        reserveTimeoutId = null;
+        cancelAnimationFrame(reserveAnimationId);
+        reserveAnimationId = null;
       }
-    }
-
-    const downBeatFile = "https://github.com/trbntee/practice/raw/main/%E3%83%A1%E3%83%88%E3%83%AD%E3%83%8E%E3%83%BC%E3%83%A0%E3%81%AE%E3%83%81%E3%83%BC%E3%83%B3.mp3";
-    const upBeatFile = "https://github.com/trbntee/practice/raw/main/%E3%83%A1%E3%83%88%E3%83%AD%E3%83%8E%E3%83%BC%E3%83%A0%E3%81%AE%E3%82%AB%E3%83%81%E3%83%83.mp3";
-    const endSoundFile = "https://github.com/trbntee/practice/raw/main/%E3%82%B9%E3%83%A9%E3%82%A4%E3%83%88%E3%82%99%E3%83%9B%E3%82%A4%E3%83%83%E3%82%B9%E3%83%AB%E3%83%95%E3%82%A1%E3%83%B3%E3%83%95%E3%82%A1%E3%83%BC%E3%83%AC2.mp3";
-    const downBeat = new Audio(downBeatFile);
-    const upBeat = new Audio(upBeatFile);
-    const endSound = new Audio(endSoundFile);
-
-
-
-    const audio = {
-      upBeat: upBeat,
-      downBeat: downBeat,
-      endSound: endSound,
     }
 
     const startButton = document.querySelector('.start-button');
@@ -304,3 +330,4 @@
 </body>
 
 </html>
+
